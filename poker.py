@@ -6,7 +6,7 @@ _N_CARDS = 3
 
 def main():
     """
-    Run iterations of counterfactual regret minimization algorithm.
+    Run iterations of countemonte.pyrfactual regret minimization algorithm.
     """
     i_map = {}  # map of information sets
     n_iterations = 10000
