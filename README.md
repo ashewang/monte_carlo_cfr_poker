@@ -5,6 +5,15 @@
 | 2   | Elsai Deribu  | UGR/0066/12  |
 
 
+### Monte Carlo Counterfactual Regret Minimization (MCCFR)
+
+MCCFR is an algorithm used to find approximate Nash equilibria in extensive-form games, which are games that involve sequences of moves with hidden information. The algorithm enhances traditional Counterfactual Regret Minimization (CFR) by incorporating Monte Carlo sampling methods, significantly improving efficiency by sampling the vast decision spaces typically found in these games.
+
+At its core, MCCFR iteratively improves a strategy by minimizing regret: the difference between the reward that was actually achieved and the reward that could have been achieved with an optimal decision. Unlike CFR that requires traversing all decision nodes, MCCFR randomly samples paths in the game tree, which allows it to scale to larger games without exhaustive computation.
+
+The key advantage of MCCFR over other game-solving approaches is its ability to efficiently handle games with a large number of possible outcomes and actions, making it particularly useful in domains like poker, where decisions are interdependent and information is imperfect.
+
+
 # Poker AI Simulation
 
 This repository contains the implementation of a Poker AI using Monte Carlo Counterfactual Regret Minimization (MCCFR) techniques. The code simulates learning strategies using self play for a simplified version of poker, including both Leduc and Kuhn variants.
