@@ -54,3 +54,35 @@ python monte_carlo_cfr.py
 - Run the search simulation on the terminal. (Simulation for real time playing). This will let you play the simple version of the game in the terminal. 
 ```bash
 python search.py
+```
+
+# Outputs
+The outputs of running the MCCFR on a large lever is the strategies for each node in a tree. For example we can see the following strategies generated for 
+board  `KsQdTc2d4h`, flop cards being `KsQdTc`, turn cards being `2d`, and river cards being `4h`. 
+Let's take a scenario with the following intial states.
+- Number of players: 3
+- Starting stacks for each player: 320 chips
+- Small Blind: 10
+- Big blind: 20
+
+The below image shows the strategies for the first player to take. the orange colors indicate raising by 40 chips and blue colors indicate folding.
+The engine gave 29% for raising and 66% for folding. This indicates that the first player should fold most of the time if this kind of situations occur.
+
+![img.png](img.png). 
+
+
+Now lets see what happens for the second player, if the first player played raise by 40.
+![img_1.png](img_1.png)
+
+As can be seen in the image, the engine suggests the player to fold if the first player raise by 40.
+
+
+Now let's see what the last player should play if the 2nd player played call, against the AI's suggestions.
+![img_2.png](img_2.png)
+
+The AI suggests the third player to play call or fold with almost equal probabilities. 
+
+# Conclusion
+This is how the poker engine build with the MCCFR algorithm works. It tries to approximate the strategies to nash equilibrium strategies as in zero sum games.
+
+
