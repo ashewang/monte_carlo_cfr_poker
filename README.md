@@ -68,17 +68,17 @@ Let's take a scenario with the following intial states.
 The below image shows the strategies for the first player to take. the orange colors indicate raising by 40 chips and blue colors indicate folding.
 The engine gave 29% for raising and 66% for folding. This indicates that the first player should fold most of the time if this kind of situations occur.
 
-![img.png](img.png). 
+![player_1.png](player_1.png). 
 
 
 Now lets see what happens for the second player, if the first player played raise by 40.
-![img_1.png](img_1.png)
+![player_2.png](player_2.png)
 
 As can be seen in the image, the engine suggests the player to fold if the first player raise by 40.
 
 
 Now let's see what the last player should play if the 2nd player played call, against the AI's suggestions.
-![img_2.png](img_2.png)
+![player_3.png](player_3.png)
 
 The AI suggests the third player to play call or fold with almost equal probabilities. 
 
