@@ -47,12 +47,18 @@ class TestHoldemEval(unittest.TestCase):
         """Flush example: 5♠9♠, plus 3♠A♠T♠ in board => A-high flush."""
         hole_cards = string_to_cards("5s9s")
         board_cards = string_to_cards("3sAsTs4d2h")
+        hand_cards2 = string_to_cards("6sJs")
         hand_type, detail = holdem_eval(hole_cards, board_cards)
+        hand_type2, detail2 = holdem_eval(hand_cards2, board_cards)
         self.assertEqual(hand_type, HoldemHandType.FLUSH)
+        self.assertEqual(hand_type2, HoldemHandType.FLUSH)
         # detail is an integer 'flush_score' - we won't decode it fully here,
         # but we can confirm it's not None and > 0
         self.assertIsInstance(detail, int)
         self.assertTrue(detail > 0)
+        # detail2 should be larger than detail 
+        self.assertTrue(detail2 > detail)
+        print( "flush test", detail)
 
     def test_holdem_eval_straight(self):
         """Straight: 7-card set that forms 5 consecutive ranks (e.g. 5..9)."""
