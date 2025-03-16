@@ -7,7 +7,7 @@ from itertools import permutations
 from tqdm import tqdm
 from best_response import exploitability
 from node import MNode as Node
-from card import Card
+from src.card import Card
 from hand_eval import leduc_eval
 from util import expected_utility, bias
 

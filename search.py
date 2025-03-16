@@ -3,7 +3,7 @@ import pickle
 import numpy as np
 from copy import deepcopy
 
-from card import Card
+from src.card import Card
 from node import MNode as Node
 from monte_carlo_cfr import learn, Search
 from itertools import permutations
