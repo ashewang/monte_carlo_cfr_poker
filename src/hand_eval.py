@@ -28,7 +28,6 @@ def is_royal_flush(cards, board):
     # We need bits for T,J,Q,K,A => ranks 10..14 => bits 8..12
     ROYAL_MASK = ((1 << (10 - 2)) | (1 << (11 - 2)) | 
                   (1 << (12 - 2)) | (1 << (13 - 2)) | (1 << (14 - 2)))
-    # Check each suit
     for i, mask in enumerate(suits_bitmask):
         if (mask & ROYAL_MASK) == ROYAL_MASK:
             return True, i+1
@@ -62,19 +61,18 @@ def get_straight_flush_suit_and_rank(hole_cards, board_cards):
 
 def _get_best_straight_in_mask(rank_mask):
     """
-    Given a 13-bit mask of ranks for a single suit,
+    Given a 13-bit mask of ranks for one suit,
     return the highest rank of any 5-consecutive run, else None.
-    Handles wheel (A-2-3-4-5) => returns 5 if present.
+    Handles the A-2-3-4-5 wheel => returns 5 if present.
     """
     def has_rank(r):
         return (rank_mask & (1 << (r - 2))) != 0
 
-    # Check normal straights from Ace(14) down to 5
-    for high_card in range(14, 4, -1):
+    for high_card in range(14, 4, -1):  # 14 down to 5
         if all(has_rank(high_card - off) for off in range(5)):
             return high_card
 
-    # Wheel check: A(14),2,3,4,5
+    # Wheel check
     if all(has_rank(r) for r in [14, 2, 3, 4, 5]):
         return 5
     return None
@@ -141,7 +139,7 @@ def get_flush_score_fast(hole_cards, board_cards):
     """
     Returns an integer 'score' for the best 5-card flush among the 7 cards.
     If no flush exists, returns None.
-    Higher integer => better flush.
+    Higher integer => better flush (packed with 4 bits per rank).
     """
     suit_buckets = [[] for _ in range(4)]
     for c in (hole_cards + board_cards):
@@ -152,7 +150,6 @@ def get_flush_score_fast(hole_cards, board_cards):
         if len(ranks) >= 5:
             top5 = heapq.nlargest(5, ranks)
             score = 0
-            # pack ranks in descending order into an integer
             for r in sorted(top5, reverse=True):
                 score = (score << 4) | r
             if score > best_score:
@@ -160,18 +157,13 @@ def get_flush_score_fast(hole_cards, board_cards):
 
     return best_score if best_score > 0 else None
 
-# -------------------------------------------------------------------------
-# ADDITIONAL HELPERS FOR STRAIGHT, TRIPS, TWO PAIR, HIGH CARD
-# -------------------------------------------------------------------------
-
 def get_best_straight_rank(hole_cards, board_cards):
     """
-    Returns the top rank (in [5..14]) of the best 5-card straight
+    Returns the top rank (5..14) of the best 5-card straight
     among these 7 cards, or None if no straight.
-    Handles the A-2-3-4-5 wheel (returns 5 in that case).
+    Handles A-2-3-4-5 => returns 5.
     """
     all_cards = hole_cards + board_cards
-    # Build a bitmask of *all* ranks present (ignoring suit).
     rank_mask = 0
     for c in all_cards:
         rank_mask |= (1 << (c.rank - 2))
@@ -179,39 +171,70 @@ def get_best_straight_rank(hole_cards, board_cards):
     def has_rank(r):
         return (rank_mask & (1 << (r - 2))) != 0
 
-    # Check from Ace(14) down to 5
+    # Descending check
     for high_card in range(14, 4, -1):
         if all(has_rank(high_card - off) for off in range(5)):
             return high_card
 
-    # Wheel check
+    # Wheel
     if all(has_rank(r) for r in [14, 2, 3, 4, 5]):
         return 5
-
     return None
 
-def get_three_of_a_kind_rank(hole_cards, board_cards):
+# -------------------------------------------------------------------------
+# Enhanced helpers for lower hands (3-of-a-kind, 2-pair, pair, high card)
+# that also return kicker details.
+# -------------------------------------------------------------------------
+
+def get_three_of_a_kind_tiebreak(hole_cards, board_cards):
     """
-    Returns the highest rank for which count >= 3,
-    or None if no three-of-a-kind exists.
+    If there's a three-of-a-kind, return (trip_rank, kicker1, kicker2),
+    all in descending rank order of the kickers.
+    Otherwise None.
+
+    This does NOT exclude quads/full-house (those are checked first in holdem_eval),
+    so if count>=3, we treat it as "trips" for tie-break purposes.
     """
     all_cards = hole_cards + board_cards
     rank_count = [0]*13
     for c in all_cards:
         rank_count[c.rank - 2] += 1
 
-    # check from Ace down to 2
+    # find the highest triple
+    trip = None
     for i in reversed(range(13)):
         if rank_count[i] >= 3:
-            return i + 2
-    return None
+            trip = i + 2
+            break
+    if trip is None:
+        return None
 
-def get_two_pair_ranks(hole_cards, board_cards):
+    # remove those 3 from the "pool" so we can pick the top 2 kickers
+    rank_count[trip - 2] -= 3
+
+    # gather leftover ranks
+    leftover = []
+    for i in reversed(range(13)):
+        if rank_count[i] > 0:
+            # if rank_count[i] = n, that means we have n cards of rank (i+2)
+            # but for kicker, each rank only matters once in this scenario, so just add the rank once per card
+            # However, typically you only need the top 2 distinct leftover ranks, but let's store them all
+            leftover.extend([i+2]*rank_count[i])
+
+    leftover.sort(reverse=True)
+    # we only want top 2 as the kickers
+    kicker1 = leftover[0] if len(leftover) > 0 else 0
+    kicker2 = leftover[1] if len(leftover) > 1 else 0
+
+    # restore
+    rank_count[trip - 2] += 3
+
+    return (trip, kicker1, kicker2)
+
+def get_two_pair_tiebreak(hole_cards, board_cards):
     """
-    If the 7 cards contain at least two distinct ranks with count>=2,
-    return a tuple (top_pair_rank, second_pair_rank).
+    If there's at least two distinct pairs, return (top_pair, second_pair, kicker).
     Otherwise None.
-    Example: If you have ranks A,A,K,K,9,... => returns (14,13).
     """
     all_cards = hole_cards + board_cards
     rank_count = [0]*13
@@ -219,100 +242,155 @@ def get_two_pair_ranks(hole_cards, board_cards):
         rank_count[c.rank - 2] += 1
 
     pairs = []
-    # Check from Ace=12 down to 2=0
+    # find all ranks that have at least 2
     for i in reversed(range(13)):
         if rank_count[i] >= 2:
             pairs.append(i+2)
-        if len(pairs) == 2:
-            # Found at least two pairs
-            return (pairs[0], pairs[1])
-    return None
 
-def get_high_card_rank(hole_cards, board_cards):
+    if len(pairs) < 2:
+        return None
+
+    # pick the top 2 pairs
+    top_pair = pairs[0]
+    second_pair = pairs[1]
+
+    # remove these pairs from rank_count so we can find the kicker
+    rank_count[top_pair - 2] -= 2
+    rank_count[second_pair - 2] -= 2
+
+    # now find the best leftover rank
+    kicker = 0
+    for i in reversed(range(13)):
+        if rank_count[i] > 0:
+            kicker = i + 2
+            break
+
+    # restore
+    rank_count[top_pair - 2] += 2
+    rank_count[second_pair - 2] += 2
+
+    return (top_pair, second_pair, kicker)
+
+def get_one_pair_tiebreak(hole_cards, board_cards):
     """
-    Returns the single highest rank among the 7 cards (2..14).
+    If there's at least one pair, return (pair_rank, kicker1, kicker2, kicker3).
+    Otherwise None.
     """
     all_cards = hole_cards + board_cards
-    max_rank = 0
+    rank_count = [0]*13
     for c in all_cards:
-        if c.rank > max_rank:
-            max_rank = c.rank
-    return max_rank
+        rank_count[c.rank - 2] += 1
+
+    pair_rank = None
+    for i in reversed(range(13)):
+        if rank_count[i] >= 2:
+            pair_rank = i + 2
+            break
+    if pair_rank is None:
+        return None
+
+    # remove those 2
+    rank_count[pair_rank - 2] -= 2
+
+    # gather leftover ranks
+    leftover = []
+    for i in reversed(range(13)):
+        while rank_count[i] > 0:
+            leftover.append(i + 2)
+            rank_count[i] -= 1
+
+    # leftover now sorted descending
+    # pick top 3 as kickers
+    kicker1 = leftover[0] if len(leftover) > 0 else 0
+    kicker2 = leftover[1] if len(leftover) > 1 else 0
+    kicker3 = leftover[2] if len(leftover) > 2 else 0
+
+    return (pair_rank, kicker1, kicker2, kicker3)
+
+def get_high_card_tiebreak(hole_cards, board_cards):
+    """
+    Return the top 5 ranks in descending order as a tuple.
+    If fewer than 5 cards, fill with 0, but we always have 7, so that won't happen.
+    """
+    all_cards = hole_cards + board_cards
+    ranks = sorted([c.rank for c in all_cards], reverse=True)
+
+    # top 5
+    top5 = ranks[:5] if len(ranks) >= 5 else ranks
+    # pad if needed, but typically not for 7-card
+    while len(top5) < 5:
+        top5.append(0)
+
+    return tuple(top5)
 
 # -------------------------------------------------------------------------
 def holdem_eval(card, board):
     """
     Evaluate a 7-card Texas Hold'em holding (2 in 'card', 5 in 'board').
     Returns a tuple (hand_type, tiebreak_info).
-    'hand_type' is one of HoldemHandType enum.
-    'tiebreak_info' is an int or tuple providing more detail (e.g. rank).
+      - hand_type is one of HoldemHandType
+      - tiebreak_info can be an integer or a tuple of integers
+
+    The order in which we check is from best to worst:
+      Royal Flush -> Straight Flush -> Four of a Kind -> Full House ->
+      Flush -> Straight -> Three of a Kind -> Two Pair -> Pair -> High Card
+    Now for the lower types we incorporate kicker information as well.
     """
 
     if len(board) != 5 or len(card) != 2:
         raise ValueError("Invalid board or card input.")
 
-    # 1) Royal Flush?
+    # 1) Royal Flush
     is_royal, suit = is_royal_flush(card, board)
     if is_royal:
-        # Return (ROYAL_FLUSH, suit)
         return (HoldemHandType.ROYAL_FLUSH, suit)
 
-    # 2) Straight Flush?
+    # 2) Straight Flush
     sf = get_straight_flush_suit_and_rank(card, board)
     if sf is not None:
         suit_sf, rank_sf = sf
         return (HoldemHandType.STRAIGHT_FLUSH, rank_sf)
 
-    # 3) Four of a Kind?
+    # 3) Four of a Kind
     foak = four_of_a_kind_and_kicker(card, board)
     if foak is not None:
         quad_rank, kicker_rank = foak
         return (HoldemHandType.FOUR_OF_A_KIND, (quad_rank, kicker_rank))
 
-    # 4) Full House?
+    # 4) Full House
     fh = get_best_full_house(card, board)
     if fh is not None:
         triple_rank, pair_rank = fh
         return (HoldemHandType.FULL_HOUSE, (triple_rank, pair_rank))
 
-    # 5) Flush? (Any 5+ in same suit)
+    # 5) Flush
     flush_score = get_flush_score_fast(card, board)
     if flush_score is not None:
-        # Return flush score so we can compare flush v flush
+        # For flush vs flush, we already have a big integer comparison
         return (HoldemHandType.FLUSH, flush_score)
 
-    # 6) Straight?
+    # 6) Straight
     straight_rank = get_best_straight_rank(card, board)
     if straight_rank is not None:
         return (HoldemHandType.STRAIGHT, straight_rank)
 
-    # 7) Three of a Kind?
-    trips_rank = get_three_of_a_kind_rank(card, board)
-    if trips_rank is not None:
-        return (HoldemHandType.THREE_OF_A_KIND, trips_rank)
+    # 7) Three of a Kind (with kickers)
+    three_tiebreak = get_three_of_a_kind_tiebreak(card, board)
+    if three_tiebreak is not None:
+        # e.g. (trip_rank, kicker1, kicker2)
+        return (HoldemHandType.THREE_OF_A_KIND, three_tiebreak)
 
-    # 8) Two Pair?
-    tp = get_two_pair_ranks(card, board)
-    if tp is not None:
-        # tp is (top_pair_rank, second_pair_rank)
-        return (HoldemHandType.TWO_PAIR, tp)
+    # 8) Two Pair (with kicker)
+    two_pair_tiebreak = get_two_pair_tiebreak(card, board)
+    if two_pair_tiebreak is not None:
+        # e.g. (top_pair, second_pair, kicker)
+        return (HoldemHandType.TWO_PAIR, two_pair_tiebreak)
 
-    # 9) Pair?
-    # We didn't implement a direct function above, but let's do it inline quickly:
-    all_cards = card + board
-    rank_count = [0]*13
-    for c in all_cards:
-        rank_count[c.rank - 2] += 1
+    # 9) One Pair (with 3 kickers)
+    one_pair_tiebreak = get_one_pair_tiebreak(card, board)
+    if one_pair_tiebreak is not None:
+        return (HoldemHandType.PAIR, one_pair_tiebreak)
 
-    pair_rank = None
-    # check highest pair
-    for i in reversed(range(13)):
-        if rank_count[i] >= 2:
-            pair_rank = i+2
-            break
-    if pair_rank is not None:
-        return (HoldemHandType.PAIR, pair_rank)
-
-    # 10) High Card
-    high_card = get_high_card_rank(card, board)
-    return (HoldemHandType.HIGH_CARD, high_card)
+    # 10) High Card (top 5 ranks)
+    high_card_tuple = get_high_card_tiebreak(card, board)
+    return (HoldemHandType.HIGH_CARD, high_card_tuple)
