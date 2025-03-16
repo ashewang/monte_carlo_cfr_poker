@@ -1,4 +1,3 @@
-from card import string_to_cards
 from enum import IntEnum
 import heapq
 
@@ -317,4 +316,3 @@ def holdem_eval(card, board):
     # 10) High Card
     high_card = get_high_card_rank(card, board)
     return (HoldemHandType.HIGH_CARD, high_card)
-
